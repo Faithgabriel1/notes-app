@@ -154,3 +154,47 @@ button:hover {
   width: 100%;
   margin-bottom: 16px;
 }
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.app-header h1 {
+  margin: 0;
+}
+
+.logout-btn {
+  background: #6b7280;
+  font-size: 13px;
+  padding: 8px 14px;
+}
+
+.logout-btn:hover {
+  background: #4b5563;
+}
+
+.auth-error {
+  color: #dc2626;
+  font-size: 13px;
+  min-height: 18px;
+  margin: 8px 0 0 0;
+}
+
+.auth-toggle-text {
+  text-align: center;
+  font-size: 14px;
+  color: #6b7280;
+  margin-top: 16px;
+}
+
+.auth-toggle-text a {
+  color: #1e63c8;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-toggle-text a:hover {
+  text-decoration: underline;
+}

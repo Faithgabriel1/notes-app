@@ -1,7 +1,109 @@
-const API_URL = "http://localhost:3001/notes";
-let editingNoteId = null;
-let allNotes = []; // full list fetched from backend; search filters this locally
+const API_URL = "https://notes-app-backend-2e1k.onrender.com";
 
+let editingNoteId = null;
+let allNotes = [];
+let isLoginMode = true; // tracks whether the auth form is in Login or Sign Up mode
+
+// --- TOKEN HELPERS ---
+function getToken() {
+  return localStorage.getItem("token");
+}
+
+function saveToken(token) {
+  localStorage.setItem("token", token);
+}
+
+function clearToken() {
+  localStorage.removeItem("token");
+}
+
+// --- SCREEN SWITCHING ---
+function showApp() {
+  document.getElementById("auth-container").style.display = "none";
+  document.getElementById("app-container").style.display = "block";
+  loadNotes();
+}
+
+function showAuth() {
+  document.getElementById("auth-container").style.display = "block";
+  document.getElementById("app-container").style.display = "none";
+}
+
+// --- AUTH FORM TOGGLE (Login <-> Sign Up) ---
+const authTitle = document.getElementById("auth-title");
+const authSubmitBtn = document.getElementById("auth-submit-btn");
+const authToggleQuestion = document.getElementById("auth-toggle-question");
+const authToggleLink = document.getElementById("auth-toggle-link");
+const authError = document.getElementById("auth-error");
+
+authToggleLink.addEventListener("click", (event) => {
+  event.preventDefault();
+  isLoginMode = !isLoginMode;
+  authError.textContent = "";
+
+  if (isLoginMode) {
+    authTitle.textContent = "Log In";
+    authSubmitBtn.textContent = "Log In";
+    authToggleQuestion.textContent = "Don't have an account?";
+    authToggleLink.textContent = "Sign Up";
+  } else {
+    authTitle.textContent = "Sign Up";
+    authSubmitBtn.textContent = "Sign Up";
+    authToggleQuestion.textContent = "Already have an account?";
+    authToggleLink.textContent = "Log In";
+  }
+});
+
+// --- AUTH FORM SUBMIT (handles both Login and Sign Up) ---
+const authForm = document.getElementById("auth-form");
+
+authForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  authError.textContent = "";
+
+  const email = document.getElementById("auth-email").value;
+  const password = document.getElementById("auth-password").value;
+
+  const endpoint = isLoginMode ? "/login" : "/signup";
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    authError.textContent = data.error || "Something went wrong";
+    return;
+  }
+
+  if (isLoginMode) {
+    // Login gives us a token directly - save it and go to the app
+    saveToken(data.token);
+    showApp();
+  } else {
+    // Sign up doesn't log us in automatically - switch to login mode
+    authError.style.color = "#16a34a";
+    authError.textContent = "Account created! Please log in.";
+    isLoginMode = true;
+    authTitle.textContent = "Log In";
+    authSubmitBtn.textContent = "Log In";
+    authToggleQuestion.textContent = "Don't have an account?";
+    authToggleLink.textContent = "Sign Up";
+  }
+
+  authForm.reset();
+});
+
+// --- LOGOUT ---
+document.getElementById("logout-btn").addEventListener("click", () => {
+  clearToken();
+  showAuth();
+});
+
+// --- NOTES RENDERING ---
 function renderNotes(notesToRender) {
   const notesList = document.getElementById("notes-list");
   notesList.innerHTML = "";
@@ -30,9 +132,12 @@ function renderNotes(notesToRender) {
         const newTitle = noteCard.querySelector(".edit-title-input").value;
         const newContent = noteCard.querySelector(".edit-content-input").value;
 
-        await fetch(`${API_URL}/${note.id}`, {
+        await fetch(`${API_URL}/notes/${note.id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${getToken()}`,
+          },
           body: JSON.stringify({ title: newTitle, content: newContent }),
         });
 
@@ -72,8 +177,9 @@ function renderNotes(notesToRender) {
         const confirmed = confirm(`Delete "${note.title}"?`);
         if (!confirmed) return;
 
-        await fetch(`${API_URL}/${note.id}`, {
+        await fetch(`${API_URL}/notes/${note.id}`, {
           method: "DELETE",
+          headers: { Authorization: `Bearer ${getToken()}` },
         });
         loadNotes();
       });
@@ -98,13 +204,20 @@ async function loadNotes() {
   const notesList = document.getElementById("notes-list");
   notesList.innerHTML = `<p class="empty-state">Loading notes...</p>`;
 
-  const response = await fetch(API_URL);
-  allNotes = await response.json();
+  const response = await fetch(`${API_URL}/notes`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
 
+  if (!response.ok) {
+    // token invalid/expired - log the user out
+    clearToken();
+    showAuth();
+    return;
+  }
+
+  allNotes = await response.json();
   applySearchFilter();
 }
-
-loadNotes();
 
 const searchInput = document.getElementById("search-input");
 searchInput.addEventListener("input", applySearchFilter);
@@ -127,9 +240,12 @@ form.addEventListener("submit", async (event) => {
     content: contentInput.value,
   };
 
-  await fetch(API_URL, {
+  await fetch(`${API_URL}/notes`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${getToken()}`,
+    },
     body: JSON.stringify(newNote),
   });
 
@@ -139,3 +255,10 @@ form.addEventListener("submit", async (event) => {
 
   loadNotes();
 });
+
+// --- ON PAGE LOAD: check if already logged in ---
+if (getToken()) {
+  showApp();
+} else {
+  showAuth();
+}
